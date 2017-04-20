@@ -12,3 +12,4 @@ data/*
 lib/*
 start_red.bat
 start_red_autorestart.bat
+cogs/ugh.py
