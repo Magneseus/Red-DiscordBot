@@ -1,8 +1,14 @@
 *.json
 *.pyc
 __pycache__
-data
-!data/trivia/*
-!data/audio/playlists/*
+
+data/*
+!data/think
+[Tt]humbs.db
+
+
 *.exe
 *.dll
+lib/*
+start_red.bat
+start_red_autorestart.bat
