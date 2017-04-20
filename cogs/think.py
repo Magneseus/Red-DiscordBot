@@ -16,11 +16,14 @@ DEFAULT_DIR = "./data/think/thinking"
 thinkReg = re.compile(':th[aeiou]+nk\w*:', re.IGNORECASE)
 
 class Think:
-	"""General commands."""
+	"""Initialization function"""
 	def __init__(self, bot):
 		self.bot = bot
 		self.thinks = getThinks(DEFAULT_DIR)
+		if len(self.bot.servers) > 0:
+			self.mainServer = list(self.bot.servers)[0]
 	
+	"""Posts a random think to the channel"""
 	@commands.command(pass_context=True)
 	async def randomThink(self, ctx):
 		"""This returns a random thinking emote."""
@@ -36,9 +39,12 @@ class Think:
 	async def on_reaction_add(self, reaction, user):
 		if thinkReg.search(str(reaction.emoji).lower()) != None or "🤔" in str(reaction.emoji):
 			await self.bot.add_reaction(reaction.message, reaction.emoji)
+	
+	async def on_ready(self):
+		self.mainServer = list(self.bot.servers)[0]
 
 def getThinks(mypath):
-	return [f for f in listdir(mypath) if isfile(join(mypath, f))]
+	return [f for f in listdir(mypath) if (isfile(join(mypath, f)) and not f.endswith('.db'))]
 
 def setup(bot):
 	bot.add_cog(Think(bot))
