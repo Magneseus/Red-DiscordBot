@@ -17,6 +17,9 @@ class Gifr:
 		self.bot = bot
 		self.word_dict = {}
 
+	def __del__(self):
+		self.save_word_list()
+
 	@commands.command(pass_context=True)
 	async def word(self, ctx):
 		maxWord = await self.getMostCommonWord()
