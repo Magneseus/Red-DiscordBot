@@ -11,6 +11,7 @@ import re
 import aiohttp
 import asyncio
 import logging
+import json
 
 
 class StreamsError(Exception):
@@ -42,7 +43,8 @@ class Streams:
         self.bot = bot
         self.twitch_streams = dataIO.load_json("data/streams/twitch.json")
         self.hitbox_streams = dataIO.load_json("data/streams/hitbox.json")
-        self.beam_streams = dataIO.load_json("data/streams/beam.json")
+        self.mixer_streams = dataIO.load_json("data/streams/beam.json")
+        self.picarto_streams = dataIO.load_json("data/streams/picarto.json")
         settings = dataIO.load_json("data/streams/settings.json")
         self.settings = defaultdict(dict, settings)
         self.messages_cache = defaultdict(list)
@@ -87,13 +89,30 @@ class Streams:
             await self.bot.say(embed=embed)
 
     @commands.command()
-    async def beam(self, stream: str):
-        """Checks if beam stream is online"""
+    async def mixer(self, stream: str):
+        """Checks if mixer stream is online"""
         stream = escape_mass_mentions(stream)
-        regex = r'^(https?\:\/\/)?(www\.)?(beam\.pro\/)'
+        regex = r'^(https?\:\/\/)?(www\.)?(mixer\.com\/)'
         stream = re.sub(regex, '', stream)
         try:
-            embed = await self.beam_online(stream)
+            embed = await self.mixer_online(stream)
+        except OfflineStream:
+            await self.bot.say(stream + " is offline.")
+        except StreamNotFound:
+            await self.bot.say("That stream doesn't exist.")
+        except APIError:
+            await self.bot.say("Error contacting the API.")
+        else:
+            await self.bot.say(embed=embed)
+
+    @commands.command()
+    async def picarto(self, stream: str):
+        """Checks if picarto stream is online"""
+        stream = escape_mass_mentions(stream)
+        regex = r'^(https?\:\/\/)?(www\.)?(picarto\.tv\/)'
+        stream = re.sub(regex, '', stream)
+        try:
+            embed = await self.picarto_online(stream)
         except OfflineStream:
             await self.bot.say(stream + " is offline.")
         except StreamNotFound:
@@ -174,15 +193,15 @@ class Streams:
 
         dataIO.save_json("data/streams/hitbox.json", self.hitbox_streams)
 
-    @streamalert.command(name="beam", pass_context=True)
-    async def beam_alert(self, ctx, stream: str):
-        """Adds/removes beam alerts from the current channel"""
+    @streamalert.command(name="mixer", pass_context=True)
+    async def mixer_alert(self, ctx, stream: str):
+        """Adds/removes mixer alerts from the current channel"""
         stream = escape_mass_mentions(stream)
-        regex = r'^(https?\:\/\/)?(www\.)?(beam\.pro\/)'
+        regex = r'^(https?\:\/\/)?(www\.)?(mixer\.com\/)'
         stream = re.sub(regex, '', stream)
         channel = ctx.message.channel
         try:
-            await self.beam_online(stream)
+            await self.mixer_online(stream)
         except StreamNotFound:
             await self.bot.say("That stream doesn't exist.")
             return
@@ -192,7 +211,7 @@ class Streams:
         except OfflineStream:
             pass
 
-        enabled = self.enable_or_disable_if_active(self.beam_streams,
+        enabled = self.enable_or_disable_if_active(self.mixer_streams,
                                                    stream,
                                                    channel)
 
@@ -202,7 +221,37 @@ class Streams:
         else:
             await self.bot.say("Alert has been removed from this channel.")
 
-        dataIO.save_json("data/streams/beam.json", self.beam_streams)
+        dataIO.save_json("data/streams/beam.json", self.mixer_streams)
+
+    @streamalert.command(name="picarto", pass_context=True)
+    async def picarto_alert(self, ctx, stream: str):
+        """Adds/removes picarto alerts from the current channel"""
+        stream = escape_mass_mentions(stream)
+        regex = r'^(https?\:\/\/)?(www\.)?(picarto\.tv\/)'
+        stream = re.sub(regex, '', stream)
+        channel = ctx.message.channel
+        try:
+            await self.picarto_online(stream)
+        except StreamNotFound:
+            await self.bot.say("That stream doesn't exist.")
+            return
+        except APIError:
+            await self.bot.say("Error contacting the API.")
+            return
+        except OfflineStream:
+            pass
+
+        enabled = self.enable_or_disable_if_active(self.picarto_streams,
+                                                   stream,
+                                                   channel)
+
+        if enabled:
+            await self.bot.say("Alert activated. I will notify this channel "
+                               "when {} is live.".format(stream))
+        else:
+            await self.bot.say("Alert has been removed from this channel.")
+
+        dataIO.save_json("data/streams/picarto.json", self.picarto_streams)
 
     @streamalert.command(name="stop", pass_context=True)
     async def stop_alert(self, ctx):
@@ -212,7 +261,8 @@ class Streams:
         streams = (
             self.hitbox_streams,
             self.twitch_streams,
-            self.beam_streams
+            self.mixer_streams,
+            self.picarto_streams
         )
 
         for stream_type in streams:
@@ -229,7 +279,8 @@ class Streams:
 
         dataIO.save_json("data/streams/twitch.json", self.twitch_streams)
         dataIO.save_json("data/streams/hitbox.json", self.hitbox_streams)
-        dataIO.save_json("data/streams/beam.json", self.beam_streams)
+        dataIO.save_json("data/streams/beam.json", self.mixer_streams)
+        dataIO.save_json("data/streams/picarto.json", self.picarto_streams)
 
         await self.bot.say("There will be no more stream alerts in this "
                            "channel.")
@@ -250,7 +301,7 @@ class Streams:
         dataIO.save_json("data/streams/settings.json", self.settings)
         await self.bot.say('Twitch Client-ID set.')
 
-    @streamset.command(pass_context=True)
+    @streamset.command(pass_context=True, no_pm=True)
     @checks.admin()
     async def mention(self, ctx, *, mention_type : str):
         """Sets mentions for stream alerts
@@ -271,7 +322,7 @@ class Streams:
 
         dataIO.save_json("data/streams/settings.json", self.settings)
 
-    @streamset.command(pass_context=True)
+    @streamset.command(pass_context=True, no_pm=True)
     @checks.admin()
     async def autodelete(self, ctx):
         """Toggles automatic notification deletion for streams that go offline"""
@@ -324,14 +375,30 @@ class Streams:
         else:
             raise APIError()
 
-    async def beam_online(self, stream):
-        url = "https://beam.pro/api/v1/channels/" + stream
+    async def mixer_online(self, stream):
+        url = "https://mixer.com/api/v1/channels/" + stream
 
         async with aiohttp.get(url) as r:
             data = await r.json(encoding='utf-8')
         if r.status == 200:
             if data["online"] is True:
-                return self.beam_embed(data)
+                return self.mixer_embed(data)
+            else:
+                raise OfflineStream()
+        elif r.status == 404:
+            raise StreamNotFound()
+        else:
+            raise APIError()
+
+    async def picarto_online(self, stream):
+        url = "https://api.picarto.tv/v1/channel/name/" + stream
+
+        async with aiohttp.get(url) as r:
+            data = await r.text(encoding='utf-8')
+        if r.status == 200:
+            data = json.loads(data)
+            if data["online"] is True:
+                return self.picarto_embed(data)
             else:
                 raise OfflineStream()
         elif r.status == 404:
@@ -406,11 +473,11 @@ class Streams:
         embed.color = 0x98CB00
         return embed
 
-    def beam_embed(self, data):
-        default_avatar = ("https://beam.pro/_latest/assets/images/main/"
+    def mixer_embed(self, data):
+        default_avatar = ("https://mixer.com/_latest/assets/images/main/"
                           "avatars/default.jpg")
         user = data["user"]
-        url = "https://beam.pro/" + data["token"]
+        url = "https://mixer.com/" + data["token"]
         embed = discord.Embed(title=data["name"], url=url)
         embed.set_author(name=user["username"])
         embed.add_field(name="Followers", value=data["numFollowers"])
@@ -424,6 +491,34 @@ class Streams:
         embed.color = 0x4C90F3
         if data["type"] is not None:
             embed.set_footer(text="Playing: " + data["type"]["name"])
+        return embed
+
+    def picarto_embed(self, data):
+        avatar = ("https://picarto.tv/user_data/usrimg/{}/dsdefault.jpg{}"
+                  "".format(data["name"].lower(), self.rnd_attr()))
+        url = "https://picarto.tv/" + data["name"]
+        thumbnail = ("https://thumb.picarto.tv/thumbnail/{}.jpg"
+                     "".format(data["name"]))
+        embed = discord.Embed(title=data["title"], url=url)
+        embed.set_author(name=data["name"])
+        embed.set_image(url=thumbnail + self.rnd_attr())
+        embed.add_field(name="Followers", value=data["followers"])
+        embed.add_field(name="Total views", value=data["viewers_total"])
+        embed.set_thumbnail(url=avatar)
+        embed.color = 0x132332
+        data["tags"] = ", ".join(data["tags"])
+
+        if not data["tags"]:
+            data["tags"] = "None"
+
+        if data["adult"]:
+            data["adult"] = "NSFW | "
+        else:
+            data["adult"] = ""
+
+        embed.color = 0x4C90F3
+        embed.set_footer(text="{adult}Category: {category} | Tags: {tags}"
+                              "".format(**data))
         return embed
 
     def enable_or_disable_if_active(self, streams, stream, channel, _id=None):
@@ -467,9 +562,10 @@ class Streams:
         while self == self.bot.get_cog("Streams"):
             save = False
 
-            streams = ((self.twitch_streams, self.twitch_online),
-                       (self.hitbox_streams, self.hitbox_online),
-                       (self.beam_streams,   self.beam_online))
+            streams = ((self.twitch_streams,  self.twitch_online),
+                       (self.hitbox_streams,  self.hitbox_online),
+                       (self.mixer_streams,    self.mixer_online),
+                       (self.picarto_streams, self.picarto_online))
 
             for streams_list, parser in streams:
                 if parser == self.twitch_online:
@@ -512,7 +608,8 @@ class Streams:
             if save:
                 dataIO.save_json("data/streams/twitch.json", self.twitch_streams)
                 dataIO.save_json("data/streams/hitbox.json", self.hitbox_streams)
-                dataIO.save_json("data/streams/beam.json", self.beam_streams)
+                dataIO.save_json("data/streams/beam.json", self.mixer_streams)
+                dataIO.save_json("data/streams/picarto.json", self.picarto_streams)
 
             await asyncio.sleep(CHECK_DELAY)
 
@@ -566,7 +663,8 @@ def check_files():
     stream_files = (
         "twitch.json",
         "hitbox.json",
-        "beam.json"
+        "beam.json",
+        "picarto.json"
     )
 
     for filename in stream_files:
