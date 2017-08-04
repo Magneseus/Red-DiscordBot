@@ -12,3 +12,6 @@ data/*
 lib/*
 start_red.bat
 start_red_autorestart.bat
+cogs/ugh.py
+start_red.bat - Shortcut.lnk
+cogs/nancy.py
