@@ -12,14 +12,14 @@ import asyncio
 import re
 
 DEFAULT_DIR = "./data/think/thinking"
-
-thinkReg = re.compile(':th[aeiou]+nk\w*:', re.IGNORECASE)
+thinkReg = re.compile(':\w*th[aeiou]+nk\w*:', re.IGNORECASE)
 
 class Think:
 	"""Initialization function"""
 	def __init__(self, bot):
 		self.bot = bot
 		self.thinks = getThinks(DEFAULT_DIR)
+		self.thynkCount = True
 	
 	"""Posts a random think to the channel"""
 	@commands.command(pass_context=True)
@@ -33,6 +33,11 @@ class Think:
 		if message.author.id != self.bot.user.id and (thinkReg.search(str(message.content).lower()) != None or "🤔" in str(message.content) or message.content.lower() == "think" or message.content.lower() == "thonk" or message.content.lower() == "thunk"):
 			channel = message.channel
 			await self.bot.send_file(channel, join(DEFAULT_DIR, choice(self.thinks)))
+		elif message.author.id != self.bot.user.id and message.content.lower() == "thynk":
+			channel = message.channel
+			self.thynkCount = not self.thynkCount
+			if self.thynkCount:
+				await self.bot.send_file(channel, join(DEFAULT_DIR, choice(self.thinks)))
 	
 	async def on_reaction_add(self, reaction, user):
 		if thinkReg.search(str(reaction.emoji).lower()) != None or "🤔" in str(reaction.emoji):
