@@ -1,7 +1,7 @@
 # Think Bot
 #### *Red-bot with some bells and whistles*
 
-This is a bot customized for personal use on the Discord servers I frequent. Made using the wonderful ![Red](https://github.com/Cog-Creators/Red-DiscordBot) framework for discord bots. A small summary of its endlessly helpful features is given below
+This is a bot customized for personal use on the Discord servers I frequent. Made using the wonderful ![Red](https://github.com/Cog-Creators/Red-DiscordBot) framework for Discord bots. A small summary of its endlessly helpful features is given below
 
 ### Tracks conversation to provide helpful gifs.
 
